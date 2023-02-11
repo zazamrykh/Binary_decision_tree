@@ -67,7 +67,7 @@ class DecisionTreeBin:
         if self.should_stop(node):
             self.select_class(node)
             return
-        left, right = self.split(node)
+        left, right = self.split(node, self.features)
         if node.unpredictable:
             return
         self.build_tree(left)
@@ -96,7 +96,7 @@ class DecisionTreeBin:
 
     # split using Gini formula 1 - sum(pi)^2. So if Gini = 0 it means that split was good.
     # So we will find split that has best Gini index.
-    def split(self, node):
+    def split(self, node, features):
         best_branching_index = None
         best_branching_feature = None
         best_branching_feature_value = None
@@ -104,7 +104,7 @@ class DecisionTreeBin:
         whole_quantity = len(indexes)
         X = self.X
         y = self.y
-        for i in self.features:
+        for i in features:
             for j in indexes:
                 right_quantity = 0
                 first_quantity_right = 0
@@ -181,14 +181,26 @@ class DecisionTreeBin:
         node.set_right_child(right)
         return left, right
 
-    def predict(self, obj, node):
+    def predict(self, obj):
+        root = self.root
+        if root.unpredictable:
+            return 0
+        if root.is_predicate:
+            if obj[root.feature] > root.feature_value:
+                return self.find_class_node(obj, root.right_child)
+            else:
+                return self.find_class_node(obj, root.left_child)
+        else:
+            return root.class_affiliation
+
+    def find_class_node(self, obj, node):
         if node.unpredictable:
             return 0
         if node.is_predicate:
             if obj[node.feature] > node.feature_value:
-                return self.predict(obj, node.right_child)
+                return self.find_class_node(obj, node.right_child)
             else:
-                return self.predict(obj, node.left_child)
+                return self.find_class_node(obj, node.left_child)
         else:
             return node.class_affiliation
 
@@ -203,11 +215,11 @@ def print_tree(node, level=0):
         print_tree(node.right_child, level + 1)
 
 
-def count_accuracy(X, y, tree):
+def count_accuracy(X, y, model):
     correct = 0
     number_all = 0
     for index, row in X.iterrows():
-        prediction = tree.predict(row, tree.root)
+        prediction = model.predict(row)
         number_all += 1
         if prediction == y[index]:
             correct += 1
